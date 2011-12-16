@@ -2,9 +2,11 @@
 
 import sys
 import optparse
-import libvirt
 import fnmatch
 import textwrap
+import re
+
+import libvirt
 
 # Used to transtate state information from dom.info().
 domainStates = {
@@ -57,12 +59,23 @@ class Cluster (object):
         '''Return an iterator over all the hosts in the cluster.'''
         for conn in self.connections():
             info = conn.getInfo()
+
+            # This is an ugly hack to compensate for the fact the the
+            # "architecture" parameter provided by the esx:// driver is
+            # actually the processor "model name", and unsuitable for
+            # consumption by awk, etc., due to lots of embedded whitespace.
+            # We take the first string of alphanumeric characters and
+            # discard the rest.
+            arch = info[0]
+            mo = re.match('(\w+)', arch)
+            arch = mo.group(1)
+
             yield {
                     'conn': conn,
                     'uri': conn.getURI(),
                     'hostname': conn.getHostname(),
                     'type': conn.getType(),
-                    'arch': info[0],
+                    'arch': arch,
                     'memtotal': info[1],
                     'memavail': conn.getFreeMemory()/1024/1024,
                     'cpus': info[2],
