@@ -1,0 +1,31 @@
+## The ``cluster`` section defines the connection URIs 
+## that comprise your cluster as well as other global
+## parameters.
+[cluster]
+
+## The ``hosts`` key is a list of libvirt connection
+## URIs.  See http://libvirt.org/uri.html for more 
+## information.
+hosts = qemu:///system
+	qemu+ssh://vmadmin@anotherhost.example.com/system
+	esx://myvmwarehost/?no_verify=1
+
+## Set ``headers`` to ``true`` to always
+## print column headers.
+# headers = false
+
+## Set ``selector`` to ``mem`` to make the ``select``
+## command print the host with the most available
+## memory, or ``packing`` for the host with the lowest
+## guest/cpu ratio.
+# selector = mem
+
+## ``auth`` sections provide authentication credentials
+## for libvirt connections.  The URI in the section
+## marker must match exactly a URI from the ``hosts``
+## key in the ``cluster`` section.
+[auth esx://myvmwarehost/?no_verify=1]
+
+username = root
+password = secret
+
