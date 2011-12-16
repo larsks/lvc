@@ -4,6 +4,7 @@ import sys
 import optparse
 import libvirt
 import fnmatch
+import textwrap
 
 class Cluster (object):
 
@@ -44,16 +45,13 @@ class Cluster (object):
     def lookupByPattern(self, name):
         for dom in self.listAllDomains():
             if fnmatch.fnmatch(dom['name'], name):
-                return dom
+                yield dom
 
     def lookupByName(self, name):
-        if '*' in name:
-            return self.lookupByPattern(name)
-
         for host in self.listAllHosts():
             try:
                 dom = host['conn'].lookupByName(name)
-                return {
+                yield {
                         'host': host,
                         'name': dom.name(),
                         'domain': dom,
@@ -63,6 +61,12 @@ class Cluster (object):
                     continue
                 else:
                     raise
+
+    def lookup(self, name):
+        if '*' in name:
+            return self.lookupByPattern(name)
+        else:
+            return self.lookupByName(name)
 
     def uris(self):
         uritemplate = self.config.get('cluster', 'uri')
@@ -92,15 +96,16 @@ class Cluster (object):
         for dom in self.listAllDomains():
             print dom['host']['uri'], dom['name']
 
-    def cmd_hosts_parse(self, args):
+    def hosts_parse(self, args):
         p = optparse.OptionParser()
         p.add_option('-u', '--uris', action='store_true')
         return p.parse_args(args)
 
     def cmd_hosts(self, args):
-        '''List information for hosts in the cluster.'''
+        '''Display information for all hosts in the cluster.  Use
+        --uris to display connection strings instead of hostnames.'''
 
-        opts, args = self.cmd_hosts_parse(args)
+        opts, args = self.hosts_parse(args)
 
         if self.config.get('cluster', 'headers') in ['yes', 'true']:
             print ' '.join(('Name', 'Type', 'Arch', 'MemTotal', 'MemAvail', 'CPU', 'Domains'))
@@ -120,16 +125,16 @@ class Cluster (object):
                 )))
 
     def cmd_find(self, args):
-        '''Locate a domain by name.'''
+        '''Locate a domain by name (supports glob-style patterns).'''
 
         for name in args:
-            dom = self.lookupByName(name)
-            if dom:
-                print dom['host']['uri'], dom['name']
-            else:
-                print >>sys.stderr, '%s: not found' % name
+            for dom in self.lookup(name):
+                if dom:
+                    print dom['host']['uri'], dom['name']
+                else:
+                    print >>sys.stderr, '%s: not found' % name
 
-    def cmd_select_parse(self, args, selector=None):
+    def select_parse(self, args, selector=None):
         p = optparse.OptionParser()
         p.add_option('-m', '--mem', action='store_const',
                 const='mem', dest='selector')
@@ -140,15 +145,15 @@ class Cluster (object):
         return p.parse_args(args)
 
     def cmd_select(self, args):
-        '''Return a single URI suitable for deploying a new
-        virtual instance based on the value of the 'selector'.
-        If selector == mem, returns the host with the most available 
-        free memory.  If selector == packing, returns the host with the
-        lowest active domains/cpus ratio.'''
+        '''Return a single URI suitable for deploying a new virtual
+        instance based on the value of the 'selector'.  If selector == mem
+        (-m), returns the host with the most available free memory.  If
+        selector == packing (-p), returns the host with the lowest active
+        domains/cpus ratio.'''
 
         selected = None
 
-        opts, args = self.cmd_select_parse(args,
+        opts, args = self.select_parse(args,
                 selector=self.config.get('cluster', 'selector'))
 
         for host in self.listAllHosts():
@@ -174,7 +179,9 @@ class Cluster (object):
             cmd = fname[4:]
             func = getattr(self, fname)
             print '%s' % cmd
-            print '  %s' % func.__doc__
+            print textwrap.fill(func.__doc__,
+                    initial_indent='  ',
+                    subsequent_indent='  ')
 
         print
 
