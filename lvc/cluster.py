@@ -6,6 +6,18 @@ import libvirt
 import fnmatch
 import textwrap
 
+# Used to transtate state information from dom.info().
+domainStates = [ 'nostate', 'running', 'blocked', 'paused',
+        'shutdown', 'shutoff', 'crashed', 'laststate' ]
+
+# Columns output by "list" and "find" commands.
+domainColumns = [ 'name', 'persist', 'state' ]
+
+# Columns output by "hosts" command.
+hostColumns = [ 'type', 'arch',
+        'memtotal', 'memavail', 'cpus',
+        'activeDomains' ]
+
 class Cluster (object):
 
     def __init__ (self, config):
@@ -14,9 +26,11 @@ class Cluster (object):
         libvirt.registerErrorHandler(self.errorHandler, None)
 
     def errorHandler(self, ctx, error):
+        '''This is a null error handler used to keep libVirt quiet.'''
         pass
 
     def listAllHosts(self):
+        '''Return an iterator over all the hosts in the cluster.'''
         for conn in self.connections():
             info = conn.getInfo()
             yield {
@@ -32,15 +46,24 @@ class Cluster (object):
                     'definedDomains': conn.numOfDefinedDomains(),
                     }
 
+    def domainInfo(self, host, dom):
+        '''Return a dictionary describing a domain.'''
+        info = dom.info()
+
+        return {
+                'host': host,
+                'name': dom.name(),
+                'domain': dom,
+                'persist': dom.isPersistent() and 'y' or 'n',
+                'state': domainStates[info[0]],
+                }
+
     def listAllDomains(self):
+        '''Return an iterator over all active domains on all hosts.'''
         for host in self.listAllHosts():
             for domid in host['conn'].listDomainsID():
                 dom = host['conn'].lookupByID(domid)
-                yield {
-                        'host': host,
-                        'name': dom.name(),
-                        'domain': dom,
-                        }
+                yield self.domainInfo(host, dom)
                         
     def lookupByPattern(self, name):
         for dom in self.listAllDomains():
@@ -51,11 +74,7 @@ class Cluster (object):
         for host in self.listAllHosts():
             try:
                 dom = host['conn'].lookupByName(name)
-                yield {
-                        'host': host,
-                        'name': dom.name(),
-                        'domain': dom,
-                        }
+                yield self.domainInfo(host, dom)
             except libvirt.libvirtError, detail:
                 if detail.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
                     continue
@@ -63,17 +82,20 @@ class Cluster (object):
                     raise
 
     def lookup(self, name):
+        '''Lookup hosts by name or, if name contains a '*', by pattern.'''
         if '*' in name:
             return self.lookupByPattern(name)
         else:
             return self.lookupByName(name)
 
     def uris(self):
+        '''Return an iterator over URIs for cluster hosts.'''
         uritemplate = self.config.get('cluster', 'uri')
         for host in self.hosts:
             yield uritemplate % host
 
     def connections(self):
+        '''Return an iterator over connections to cluster hosts.'''
         for uri in self.uris():
             try:
                 yield libvirt.openReadOnly(uri)
@@ -83,18 +105,39 @@ class Cluster (object):
                 continue
 
     def dispatch(self, cmd, args):
+        '''Dispatch a command to the appropriate handler.'''
         if hasattr(self, 'cmd_%s' % cmd):
-            getattr(self, 'cmd_%s' % cmd)(args)
+            return getattr(self, 'cmd_%s' % cmd)(args)
         else:
             raise NotImplementedError(cmd)
 
+    def printDomains(self, iter):
+        if self.config.get('cluster', 'headers') == 'true':
+            print 'URI', ' '.join(domainColumns)
+
+        empty=True
+        for dom in iter:
+            empty=False
+            print dom['host']['uri'], ' '.join((
+                dom[x] for x in domainColumns))
+
+        return not empty
+
     def cmd_list(self, args):
         '''List all domains running on the cluster.'''
+        self.printDomains(self.listAllDomains())
+        return 0
 
-        if self.config.get('cluster', 'headers') in ['yes', 'true']:
-            print 'URI Name'
-        for dom in self.listAllDomains():
-            print dom['host']['uri'], dom['name']
+    def cmd_find(self, args):
+        '''Locate domains by name (supports glob-style patterns).'''
+        foundSomething = False
+        for dom in [self.lookup(name) for name in args]:
+            if self.printDomains(dom):
+                foundSomething = True
+
+        if not foundSomething:
+            print >>sys.stderr, 'Nothing found.'
+            return 1
 
     def hosts_parse(self, args):
         p = optparse.OptionParser()
@@ -107,32 +150,17 @@ class Cluster (object):
 
         opts, args = self.hosts_parse(args)
 
-        if self.config.get('cluster', 'headers') in ['yes', 'true']:
-            print ' '.join(('Name', 'Type', 'Arch', 'MemTotal', 'MemAvail', 'CPU', 'Domains'))
+        if opts.uris:
+            namevar = 'uri'
+        else:
+            namevar = 'hostname'
+
+        if self.config.get('cluster', 'headers') == 'true':
+            print namevar, ' '.join(hostColumns)
         for host in self.listAllHosts():
-            if opts.uris:
-                namevar = 'uri'
-            else:
-                namevar = 'hostname'
+            print ' '.join((str(host[x]) for x in [namevar] + hostColumns))
 
-            print ' '.join((str(host[x]) for x in (
-                namevar,
-                'type',
-                'memtotal',
-                'memavail',
-                'cpus',
-                'activeDomains',
-                )))
-
-    def cmd_find(self, args):
-        '''Locate domains by name (supports glob-style patterns).'''
-
-        for name in args:
-            for dom in self.lookup(name):
-                if dom:
-                    print dom['host']['uri'], dom['name']
-                else:
-                    print >>sys.stderr, '%s: not found' % name
+        return 0
 
     def select_parse(self, args, selector=None):
         p = optparse.OptionParser()
@@ -168,6 +196,7 @@ class Cluster (object):
                 selected = host
 
         print selected['uri']
+        return 0
 
     def cmd_help(self, args):
         '''Dislay documentation for lvc subcommands.'''
@@ -184,4 +213,6 @@ class Cluster (object):
                     subsequent_indent='  ')
 
         print
+        return 0
+
 

@@ -39,7 +39,7 @@ def main():
         args = [ 'list' ]
 
     cmd = args.pop(0)
-    cluster.dispatch(cmd, args)
+    sys.exit(cluster.dispatch(cmd, args))
 
 if __name__ == '__main__':
     main()
