@@ -95,16 +95,18 @@ Examples
 
 Getting a list of hosts::
 
-  # lvc hosts
-  arc-vm-2.int.seas.harvard.edu QEMU 258020 156710 48 14
-  arc-vm-3.int.seas.harvard.edu QEMU 258020 110198 48 37
-  arc-vm-4.int.seas.harvard.edu QEMU 258020 64132 48 96
-  arc-vm-5.int.seas.harvard.edu QEMU 64551 59647 16 1
+  # lvc hosts -u
+  esx://arc-vm-1:443/?no_verify=1 ESX AMD 262132 206097 48 21
+  qemu+ssh://arc-vm-2/system QEMU x86_64 258020 156710 48 14
+  qemu+ssh://arc-vm-3/system QEMU x86_64 258020 110204 48 37
+  qemu+ssh://arc-vm-4/system QEMU x86_64 258020 64125 48 96
+  qemu+ssh://arc-vm-5/system QEMU x86_64 64551 59649 16 1
 
 Find a host using a wildcard pattern::
 
   # lvc find centos*
   qemu+ssh://arc-vm-2/system centos-6-dev-0
+  qemu+ssh://arc-vm-3/system centos-6-dev-1
 
 Find the host with the most available memory::
 
