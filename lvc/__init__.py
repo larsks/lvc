@@ -8,8 +8,7 @@ from ConfigParser import ConfigParser
 from cluster import Cluster
 
 defaults = {
-        'hosts'     : 'localhost',
-        'uri'       : 'qemu+ssh://%s/system',
+        'hosts'     : 'qemu:///system',
         'headers'   : 'false',
         'selector'  : 'mem',
         }

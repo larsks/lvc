@@ -7,8 +7,15 @@ import fnmatch
 import textwrap
 
 # Used to transtate state information from dom.info().
-domainStates = [ 'nostate', 'running', 'blocked', 'paused',
-        'shutdown', 'shutoff', 'crashed', 'laststate' ]
+domainStates = {
+        libvirt.VIR_DOMAIN_RUNNING  : 'running',
+        libvirt.VIR_DOMAIN_BLOCKED  : 'idle',
+        libvirt.VIR_DOMAIN_PAUSED   : 'paused',
+        libvirt.VIR_DOMAIN_SHUTDOWN : 'shutdown',
+        libvirt.VIR_DOMAIN_SHUTOFF  : 'off',
+        libvirt.VIR_DOMAIN_CRASHED  : 'crashed',
+        libvirt.VIR_DOMAIN_NOSTATE  : 'nostate',
+        }
 
 # Columns output by "list" and "find" commands.
 domainColumns = [ 'name', 'persist', 'state' ]
@@ -28,6 +35,23 @@ class Cluster (object):
     def errorHandler(self, ctx, error):
         '''This is a null error handler used to keep libVirt quiet.'''
         pass
+
+    def authCallback(self, credentials, data):
+        '''Libvirt authentication callback.'''
+
+        for credential in credentials:
+            if credential[0] == libvirt.VIR_CRED_AUTHNAME:
+                if self.config.has_option('auth %s' % data, 'username'):
+                    credential[4] = self.config.get('auth %s' % data, 'username')
+                else:
+                    credential[4] = credential[3]
+            elif credential[0] == libvirt.VIR_CRED_NOECHOPROMPT:
+                if self.config.has_option('auth %s' % data, 'password'):
+                    credential[4] = self.config.get('auth %s' % data, 'password')
+            else:
+                return -1
+
+        return 0
 
     def listAllHosts(self):
         '''Return an iterator over all the hosts in the cluster.'''
@@ -88,17 +112,15 @@ class Cluster (object):
         else:
             return self.lookupByName(name)
 
-    def uris(self):
-        '''Return an iterator over URIs for cluster hosts.'''
-        uritemplate = self.config.get('cluster', 'uri')
-        for host in self.hosts:
-            yield uritemplate % host
-
     def connections(self):
         '''Return an iterator over connections to cluster hosts.'''
-        for uri in self.uris():
+        for uri in self.hosts:
             try:
-                yield libvirt.openReadOnly(uri)
+                auth = [
+                        [libvirt.VIR_CRED_AUTHNAME, libvirt.VIR_CRED_NOECHOPROMPT],
+                        self.authCallback,
+                        uri]
+                yield libvirt.openAuth(uri, auth, 0)
             except libvirt.libvirtError, detail:
                 print >>sys.stderr, 'ERROR: %s: %s' % (
                         uri, detail.get_error_message())
