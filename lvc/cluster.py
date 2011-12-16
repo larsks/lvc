@@ -125,7 +125,7 @@ class Cluster (object):
                 )))
 
     def cmd_find(self, args):
-        '''Locate a domain by name (supports glob-style patterns).'''
+        '''Locate domains by name (supports glob-style patterns).'''
 
         for name in args:
             for dom in self.lookup(name):
