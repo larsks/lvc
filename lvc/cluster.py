@@ -203,6 +203,8 @@ class Cluster (object):
                 const='mem', dest='selector')
         p.add_option('-p', '--packing', action='store_const',
                 const='packing', dest='selector')
+        p.add_option('-t', '--type',
+                help='Restrict hosts to a specific hypervisor type.')
 
         p.set_defaults(selector=selector)
         return p.parse_args(args)
@@ -220,6 +222,9 @@ class Cluster (object):
                 selector=self.config.get('cluster', 'selector'))
 
         for host in self.listAllHosts():
+            if opts.type and host['type'].lower() != opts.type.lower():
+                continue
+
             if selected is None:
                 selected = host
             elif opts.selector == 'mem' and host['memavail'] > selected['memavail']:
@@ -230,7 +235,10 @@ class Cluster (object):
                     ):
                 selected = host
 
-        print selected['uri']
+        if selected:
+            print selected['uri']
+        else:
+            print >>sys.stderr, 'Nothing selected by filters.'
         return 0
 
     def cmd_help(self, args):
