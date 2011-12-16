@@ -35,6 +35,61 @@ Commands
 ``select`` [ ``-pm`` ]
   Select a host based on memory or virtual instance/CPU ratio.
 
+Configuration file format
+=========================
+
+The configuration file is an INI-format file (parsed with Python's
+ConfigParser moduel).  The file must contain one ``cluster`` section, and
+may contain one or more ``auth`` sections.
+
+cluster
+-------
+
+``hosts``
+  A list of libvirt URIs identifying the hosts that comprise the cluster.
+``headers``
+  If ``true``, display column headers in ``list``, ``find``, and ``host``
+  commands.
+``selector``
+  Default selector for the ``select`` command.  One of ``mem`` or
+  ``packing``.
+
+Example
+~~~~~~~
+
+::
+
+  [cluster]
+
+  hosts = qemu:///system
+          qemu+ssh://anotherhost/system
+
+auth
+----
+
+An ``auth`` section defines authentication credentials for connections that
+require authentication.  The section is named ``auth <uri>``, where *<uri>*
+is a URI from the ``hosts`` key in the ``cluster`` section.
+
+``username``
+  Username for the connection.
+``password``
+  Password for the connection.
+
+Example
+~~~~~~~
+
+::
+
+  [cluster]
+
+  hosts = esx://anotherhost/?no_verify=1
+
+  [auth esx://anotherhost/?no_verify=1]
+
+  username = root
+  password = secret
+
 Examples
 ========
 
@@ -60,4 +115,14 @@ You can use ``lvc select`` in a call to ``virt-install`` to select
 your target host::
 
   # virt-install --connect `lvc select` -n myNewHost ...
+
+Author
+======
+
+lvc was written by Lars Kellogg-Stedman <lars@seas.harvard.edu>.
+
+License
+=======
+
+See the file ``LICENSE.txt`` distributed with this software.
 
