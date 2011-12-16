@@ -5,7 +5,7 @@ def read(fname):
     return open(os.path.join(os.path.dirname(__file__), fname)).read()
 
 setup(name='lvc',
-        version='2',
+        version='3',
 #        install_requires=[
 #            'libvirt',
 #            ],

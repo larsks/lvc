@@ -3,6 +3,7 @@
 import sys
 import optparse
 import libvirt
+import fnmatch
 
 class Cluster (object):
 
@@ -40,7 +41,15 @@ class Cluster (object):
                         'domain': dom,
                         }
                         
+    def lookupByPattern(self, name):
+        for dom in self.listAllDomains():
+            if fnmatch.fnmatch(dom['name'], name):
+                return dom
+
     def lookupByName(self, name):
+        if '*' in name:
+            return self.lookupByPattern(name)
+
         for host in self.listAllHosts():
             try:
                 dom = host['conn'].lookupByName(name)
@@ -116,7 +125,7 @@ class Cluster (object):
         for name in args:
             dom = self.lookupByName(name)
             if dom:
-                print dom['host']['uri'], name
+                print dom['host']['uri'], dom['name']
             else:
                 print >>sys.stderr, '%s: not found' % name
 
